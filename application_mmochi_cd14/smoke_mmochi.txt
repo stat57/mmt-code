@@ -1,0 +1,9 @@
+pandas version: 2.3.3
+panel 1k&5k (17): ['CD127', 'CD14', 'CD15', 'CD16', 'CD19', 'CD25', 'CD3', 'CD4', 'CD45RA', 'CD45RO', 'CD56', 'CD8a', 'IgG1_control', 'IgG2a_control', 'IgG2b_control', 'PD-1', 'TIGIT']
+panel 1k&5k&10k (17): ['CD127', 'CD14', 'CD15', 'CD16', 'CD19', 'CD25', 'CD3', 'CD4', 'CD45RA', 'CD45RO', 'CD56', 'CD8a', 'IgG1_control', 'IgG2a_control', 'IgG2b_control', 'PD-1', 'TIGIT']
+A current: n=5234, frac>2=0.5271, quantiles(5,25,50,75,95)=[1.2379, 1.6665, 2.0427, 5.5072, 6.5501], modes=[1.8047, 6.4359]
+B three-run panel: n=5234, frac>2=0.5271, quantiles(5,25,50,75,95)=[1.2379, 1.6665, 2.0427, 5.5072, 6.5501], modes=[1.8047, 6.4359]
+mmochi version: 0.3.5
+mmochi protein columns (32): ['CD3', 'CD4', 'CD8a', 'CD11b', 'CD14', 'CD15', 'CD16', 'CD19', 'CD20', 'CD25', 'CD27', 'CD28', 'CD34', 'CD45RA', 'CD45RO', 'CD56', 'CD62L', 'CD69', 'CD80', 'CD86', 'CD127', 'CD137', 'CD197', 'CD274', 'CD278', 'CD335', 'PD-1', 'HLA-DR', 'TIGIT', 'IgG1_control', 'IgG2a_control', 'IgG2b_control']
+C mmochi: n=5234, frac>2=0.3661, quantiles(5,25,50,75,95)=[0.977, 1.3845, 1.7339, 4.2826, 5.2509], modes=[1.5304, 5.0457]
+max |sorted B - sorted C| = 1.491e+00
