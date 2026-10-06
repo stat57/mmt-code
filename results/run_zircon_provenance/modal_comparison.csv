@@ -1,0 +1,2 @@
+reference,comparison,n_ref,n_cmp,n_ref_window,n_cmp_window,modes_ref,modes_cmp,D_hat,U_D,Z,decision,cut_ma,younger_share_ref,younger_share_cmp
+SJMT3,SJMT7,250,180,181,128,"[1422.56, 1713.01]","[1429.47, 1727.37]",11.266134214128057,17.91489311059539,-2.1577625991085916,equivalent,1573.1019775420552,0.6022099447513812,0.359375
