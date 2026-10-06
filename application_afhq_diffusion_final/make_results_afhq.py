@@ -140,60 +140,20 @@ def nearest(X, M):
     return np.argmin(((X[:, None, :] - M[None, :, :]) ** 2).sum(-1), axis=1)
 
 
-# ---------------- Holm decisions and simultaneous bands ----------------
+# ---------------- Holm decisions ----------------
 
 def apply_holm(tests, omni):
     """Decisions use the Holm-adjusted p-values computed in the Kaggle analysis: Holm over each (encoder, d)
-    family of equivalence and change tests, and over each (encoder, space) family of MMD and energy tests.
-    m_family (the family size) is kept for the Bonferroni simultaneous bands drawn in the distance figures."""
-    fam = {}
+    family of equivalence and change tests, and over each (encoder, space) family of MMD and energy tests."""
     for r in tests:
-        fam.setdefault((r["encoder"], r["d"]), []).append(r)
-    for rows in fam.values():
-        m = 2 * len(rows)
-        for r in rows:
-            r["m_family"] = m
-            pe = r.get("p_eq_holm_" + RULE)
-            pc = r.get("p_chg_holm_" + RULE)
-            pe = 1.0 if pe is None else float(pe)
-            pc = 1.0 if pc is None else float(pc)
-            r["decision_" + RULE] = ("unavailable" if not r.get("available") else "equivalent" if pe < ALPHA
-                                     else "meaningful change" if pc < ALPHA else "inconclusive")
+        pe = r.get("p_eq_holm_" + RULE)
+        pc = r.get("p_chg_holm_" + RULE)
+        pe = 1.0 if pe is None else float(pe)
+        pc = 1.0 if pc is None else float(pc)
+        r["decision_" + RULE] = ("unavailable" if not r.get("available") else "equivalent" if pe < ALPHA
+                                 else "meaningful change" if pc < ALPHA else "inconclusive")
     for o in omni:
         o["mmd_adj"], o["energy_adj"] = float(o["mmd_holm"]), float(o["energy_holm"])
-
-
-def add_bands(mm, modes):
-    """Simultaneous (Bonferroni) lower and upper bounds for D_A, recomputed from the refits, which use
-    the Kaggle seeds; equivalence holds iff the upper bound is below delta, change iff the lower bound is above."""
-    from scipy.optimize import linear_sum_assignment
-    from scipy.stats import norm
-    dev = 0.0
-    for r in mm:
-        if r["d"] not in FIG_DIMS or not r.get("available"):
-            continue
-        e, d, m, s = r["encoder"], r["d"], r["model"], r["step"]
-        gx, gy = modes[(e, d, m, s)], modes[(e, d, "ref")]
-        cx, cy = COVS[(e, d, m, s)], COVS[(e, d, "ref")]
-        K = len(gx)
-        if K == 0 or K != len(gy):
-            continue
-        rows_, cols_ = linear_sum_assignment(((gx[:, None, :] - gy[None, :, :]) ** 2).sum(-1))
-        pi = np.empty(K, dtype=int)
-        pi[rows_] = cols_
-        delta = (gx - gy[pi]).reshape(K * d)
-        idx = np.concatenate([np.arange(j * d, (j + 1) * d) for j in pi])
-        Om = cx + cy[np.ix_(idx, idx)]
-        Om = 0.5 * (Om + Om.T)
-        Q = float(delta @ delta)
-        Qbc = Q - float(np.trace(Om))
-        sQ = float(np.sqrt(max(4.0 * delta @ Om @ delta + 2.0 * np.trace(Om @ Om), 0.0)))
-        z = norm.ppf(1 - ALPHA / r["m_family"])
-        r["U_bonf"] = float(np.sqrt(max(Qbc + z * sQ, 0.0) / K))
-        r["L_bonf"] = float(np.sqrt(max(Qbc - z * sQ, 0.0) / K))
-        if r.get("D_hat") is not None:
-            dev = max(dev, abs(np.sqrt(max(Q / K, 0.0)) - float(r["D_hat"])))
-    print("bands: max |D_hat(refit) - D_hat(Kaggle)| = %.2e" % dev, flush=True)
 
 
 # ---------------- tables ----------------
@@ -215,7 +175,7 @@ def make_tables(an, data, modes, summ, tdir):
     write_csv(rows, tdir / "calibration.csv")
 
     keep = ["encoder", "d", "model", "step", "sigma", "K_gen", "K_ref", "available", "D_hat", "U_D",
-            "Z_" + RULE, "p_eq_" + RULE, "p_chg_" + RULE, "p_eq_holm_" + RULE, "p_chg_holm_" + RULE, "m_family",
+            "Z_" + RULE, "p_eq_" + RULE, "p_chg_" + RULE, "p_eq_holm_" + RULE, "p_chg_holm_" + RULE,
             "decision_" + RULE, "mode_labels"]
     mm = [{k.replace("_" + RULE, ""): r.get(k) for k in keep} for r in tests]
     write_csv(mm, tdir / "matched_mode_tests.csv")
@@ -395,9 +355,6 @@ def fig_distance(mm, cal, e, d, compact, path):
                 continue
             x = np.array([xpos[r["step"]] for r in rr])
             dh = np.array([r["D_hat"] for r in rr], float)
-            lo = np.array([r.get("L_bonf", np.nan) for r in rr], float)
-            up = np.array([r.get("U_bonf", np.nan) for r in rr], float)
-            ax.fill_between(x, lo, up, color=C_MOD[m], alpha=0.15, lw=0)
             ax.plot(x, dh, LS_MOD[m], color=C_MOD[m], lw=1.1, label="EDM-%s" % m.upper())
             for xi, di, r in zip(x, dh, rr):
                 ax.scatter(xi, di, s=10, color=C_DEC.get(r["decision"], "white"), edgecolor=C_MOD[m], lw=0.5,
@@ -775,11 +732,26 @@ def main():
     ap.add_argument("--workers", type=int, default=3)
     ap.add_argument("--main-only", action="store_true",
                     help="only the two one-column main-text figures (8 refits instead of all)")
+    ap.add_argument("--distance-only", action="store_true",
+                    help="only the distance figures (no refits; reads the Kaggle test table)")
     args = ap.parse_args()
     out = Path(args.out)
     fdir, tdir = out / "figures", out / "tables"
     core, imgdir, an = unzip_inputs(Path(args.inputs))
     summ = json.load(open(an / "summary.json"))
+    if args.distance_only:
+        tests = read_csv(an / "modal_tests_all.csv")
+        apply_holm(tests, [])
+        keep = ["encoder", "d", "model", "step", "sigma", "available", "D_hat", "decision_" + RULE]
+        mm = [{k.replace("_" + RULE, ""): r.get(k) for k in keep} for r in tests]
+        for e in ENCODERS:
+            for d in FIG_DIMS:
+                for compact in (False, True):
+                    tag = "compact" if compact else "full"
+                    fig_distance(mm, summ["calibration"], e, d, compact,
+                                 enc_dir(fdir, e) / "distance" / ("distance_%s_d%d_%s" % (e, d, tag)))
+        print("distance figures written to %s" % fdir, flush=True)
+        return
     data = load_core(core)
     if args.main_only:
         main_figures(an, data, summ, refit_main(data, args.workers), imgdir)
@@ -788,7 +760,6 @@ def main():
     main_figures(an, data, summ, modes, imgdir)
     print("tables", flush=True)
     mm, omni = make_tables(an, data, modes, summ, tdir)
-    add_bands(mm, modes)
     print("figures", flush=True)
     for e in ENCODERS:
         for d in FIG_DIMS:
